@@ -4,10 +4,24 @@ if(!isset($argv[1])) {
     die("Usage: php analyze.php [SOURCE-FILE]".PHP_EOL);
 }
 
+$dateFormat = 'W';
+
+if(!isset($argv[2])) {
+    $argv[2] = "week";
+}
+
+if($argv[2] == "week") $argv[2] = "W#Y";
+if($argv[2] == "dayofweek" || $argv[2] == "dow") $argv[2] = "D";
+if($argv[2] == "month") $argv[2] = "m.Y";
+if($argv[2] == "monthofyear") $argv[2] = "F";
+if($argv[2] == "year") $argv[2] = "Y";
+
 $word_usage_total = [];
 $participants = [];
 
 $messages = $previous_message = [];
+
+$maxMessagesPerTimeline = 0;
 
 $handle = fopen($argv[1], "r");
 if ($handle) {
@@ -84,10 +98,11 @@ foreach ($messages as $message) {
     $timeline = $participants[$message['user']]['timeline'];
 
     $datetime = new DateTime($message['datetime']);
-    $week = $datetime->format("W");
+    $dateFormatted = $datetime->format($argv[2]);
 
-    if(!isset($timeline[$week])) $timeline[$week] = ['text' => $week.'. Woche', 'messages' => 0];
-    $timeline[$week]['messages']++;
+    if(!isset($timeline[$dateFormatted])) $timeline[$dateFormatted] = ['text' => $dateFormatted, 'messages' => 0];
+    $timeline[$dateFormatted]['messages']++;
+    if($timeline[$dateFormatted]['messages'] > $maxMessagesPerTimeline) $maxMessagesPerTimeline = $timeline[$dateFormatted]['messages'];
 
     $participants[$message['user']]['timeline'] = $timeline;
 }
@@ -108,9 +123,11 @@ foreach ($participants as $participant) {
             else $together['words'][$word] += $used;
         }
 
-        foreach ($participants['timeline'] as $date => $timeline) {
-            if(!isset($participants[$date])) $participants[$date] = $timeline;
-            else $participants[$date]['messages'] += $timeline['messages'];
+        if(isset($participants['timeline'])) {
+            foreach ($participants['timeline'] as $date => $timeline) {
+                if(!isset($participants[$date])) $participants[$date] = $timeline;
+                else $participants[$date]['messages'] += $timeline['messages'];
+            }
         }
 
         $participants['All together'] = $together;
@@ -184,10 +201,14 @@ foreach ($participants as $participant => $usage_data) {
         $place++;
     }
     echo '|'.PHP_EOL;
-    echo '| Timeline'.PHP_EOL;
+
+    echo '| Timeline: (total messages)'.PHP_EOL;
     foreach ($usage_data['timeline'] as $date => $step) {
-        echo '| '.$step['text'].' '.$step['messages'].' messages'.PHP_EOL;
+        $points = (int)round($step['messages']/$maxMessagesPerTimeline*40);
+        echo '| '.$step['text'].' '.str_repeat("#", $points).' ('.$step['messages'].')'.PHP_EOL;
     }
+
+    echo '|'.PHP_EOL;
 }
 
 
